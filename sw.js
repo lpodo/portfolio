@@ -1,9 +1,10 @@
-var CACHE = 'portfolio-v1';
-var FILES = ['/', '/index.html', '/manifest.json'];
+var CACHE = 'portfolio-v3';
 
 self.addEventListener('install', function(e) {
   e.waitUntil(
-    caches.open(CACHE).then(function(c) { return c.addAll(FILES); })
+    caches.open(CACHE).then(function(c) {
+      return c.addAll(['./index.html', './manifest.json', './icon-192.png']);
+    })
   );
   self.skipWaiting();
 });
@@ -11,17 +12,17 @@ self.addEventListener('install', function(e) {
 self.addEventListener('activate', function(e) {
   e.waitUntil(
     caches.keys().then(function(keys) {
-      return Promise.all(keys.filter(function(k) { return k !== CACHE; }).map(function(k) { return caches.delete(k); }));
+      return Promise.all(
+        keys.filter(function(k) { return k !== CACHE; })
+            .map(function(k) { return caches.delete(k); })
+      );
     })
   );
   self.clients.claim();
 });
 
 self.addEventListener('fetch', function(e) {
-  // Network-first for API calls, cache-first for app shell
-  if (e.request.url.includes('finnhub.io') || e.request.url.includes('jsonbin.io')) {
-    return; // let these go to network directly
-  }
+  if (e.request.url.includes('finnhub.io') || e.request.url.includes('jsonbin.io')) return;
   e.respondWith(
     caches.match(e.request).then(function(cached) {
       return cached || fetch(e.request).then(function(resp) {
@@ -31,7 +32,7 @@ self.addEventListener('fetch', function(e) {
         });
       });
     }).catch(function() {
-      return caches.match('/index.html');
+      return caches.match('./index.html');
     })
   );
 });
