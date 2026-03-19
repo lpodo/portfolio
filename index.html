@@ -136,7 +136,7 @@
   .settings-panel {
     position: fixed; bottom: 0; left: 0; right: 0;
     background: var(--bg2); border-top: 1px solid var(--border);
-    padding: 14px 18px 20px; z-index: 100;
+    padding: 14px 18px 20px; z-index: 160;
     transform: translateY(100%); transition: transform 0.25s ease;
   }
   .settings-panel.open { transform: translateY(0); }
@@ -145,7 +145,7 @@
   .key-row label { font-size: 9px; color: var(--dim); letter-spacing: 2px; white-space: nowrap; min-width: 90px; }
   .key-row input { flex: 1; min-width: 0; }
   .settings-note { font-size: 10px; color: var(--dim); margin-top: 8px; }
-  .overlay { display: none; position: fixed; inset: 0; z-index: 99; }
+  .overlay { display: none; position: fixed; inset: 0; z-index: 150; }
   .overlay.open { display: block; }
 
   @media (max-width: 480px) {
@@ -419,7 +419,7 @@ function migrateToCloud() {
     return fetch('https://api.jsonbin.io/v3/b', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Master-Key': key, 'X-Bin-Name': 'portfolio' },
-      body: JSON.stringify({ positions: local })
+      body: JSON.stringify({ portfolios: portfolios })
     }).then(function(r) { return r.json(); }).then(function(res) {
       var id = res.metadata && res.metadata.id;
       if (!id) throw new Error('no_id: ' + JSON.stringify(res));
@@ -437,7 +437,7 @@ function migrateToCloud() {
     return fetch('https://api.jsonbin.io/v3/b/' + id, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-Master-Key': key },
-      body: JSON.stringify({ positions: local })
+      body: JSON.stringify({ portfolios: portfolios })
     }).then(function(r) {
       if (!r.ok) throw new Error('http_' + r.status);
       positions = local;
@@ -461,7 +461,7 @@ function updateJbStatus(msg, color) {
 function cloudSave() {
   var key = getJbKey();
   if (!key) return; // no key — local only
-  var data = { positions: positions };
+  var data = { portfolios: portfolios };
   var binId = getJbBin();
   if (!binId) {
     // Create new bin
@@ -500,10 +500,25 @@ function cloudLoad(callback) {
     return r.json();
   }).then(function(res) {
     var data = res.record;
-    if (data && Array.isArray(data.positions)) {
-      positions = data.positions;
-      saveLocal();
-      updateJbStatus('✓ Загружено из облака: ' + positions.length + ' позиций', 'var(--green)');
+    if (data && data.portfolios && typeof data.portfolios === 'object') {
+      // New multi-portfolio format
+      portfolios = data.portfolios;
+      savePortfolios();
+      // Restore current portfolio
+      if (!portfolios[currentPortfolioId]) {
+        currentPortfolioId = Object.keys(portfolios)[0];
+        localStorage.setItem('pt_current', currentPortfolioId);
+      }
+      loadLocal();
+      document.getElementById('portfolioTitle').textContent = currentPortfolio().name;
+      updateJbStatus('✓ Загружено из облака', 'var(--green)');
+      callback(true);
+    } else if (data && Array.isArray(data.positions)) {
+      // Legacy format - migrate into current portfolio
+      portfolios[currentPortfolioId].positions = data.positions;
+      savePortfolios();
+      loadLocal();
+      updateJbStatus('✓ Загружено из облака (legacy): ' + data.positions.length + ' позиций', 'var(--green)');
       callback(true);
     } else { callback(false); }
   }).catch(function(e) {
