@@ -356,8 +356,51 @@ function addPortfolio() {
   var id = 'p_' + Date.now();
   portfolios[id] = { name: name, positions: [] };
   savePortfolios();
+  save(); // sync to cloud
   document.getElementById('newPortfolioName').value = '';
-  switchPortfolio(id);
+  // Switch without triggering cloudLoad
+  currentPortfolioId = id;
+  localStorage.setItem('pt_current', id);
+  loadLocal();
+  editId = null; loadingSet = {};
+  document.getElementById('portfolioTitle').textContent = name;
+  renderSwitcher();
+  render();
+}
+
+function renamePortfolio(id) {
+  var p = portfolios[id];
+  if (!p) return;
+  var newName = prompt('Rename portfolio:', p.name);
+  if (!newName || !newName.trim()) return;
+  portfolios[id].name = newName.trim().toUpperCase();
+  savePortfolios();
+  save();
+  if (id === currentPortfolioId) {
+    document.getElementById('portfolioTitle').textContent = portfolios[id].name;
+  }
+  renderSwitcher();
+}
+
+function deletePortfolio(id) {
+  if (Object.keys(portfolios).length <= 1) {
+    alert('Cannot delete the last portfolio.');
+    return;
+  }
+  var p = portfolios[id];
+  if (!p) return;
+  if (!confirm('Delete "' + p.name + '"? This cannot be undone.')) return;
+  delete portfolios[id];
+  savePortfolios();
+  save();
+  if (currentPortfolioId === id) {
+    currentPortfolioId = Object.keys(portfolios)[0];
+    localStorage.setItem('pt_current', currentPortfolioId);
+    loadLocal();
+    editId = null; loadingSet = {};
+    document.getElementById('portfolioTitle').textContent = currentPortfolio().name;
+    render();
+  }
   renderSwitcher();
 }
 
