@@ -330,7 +330,7 @@ function renderSwitcher() {
   Object.keys(portfolios).forEach(function(id) {
     var p = portfolios[id];
     var active = id === currentPortfolioId;
-    html += '<div class="portfolio-item' + (active ? ' active' : '') + '" onclick="switchPortfolio('' + id + '')">'
+    html += '<div class="portfolio-item' + (active ? ' active' : '') + '" onclick="switchPortfolio(\'' + id + '\')">'
       + '<span class="portfolio-item-name">' + p.name + '</span>'
       + '<span class="portfolio-item-count">' + p.positions.length + ' positions'
       + (active ? ' &#10003;' : '') + '</span>'
