@@ -86,6 +86,52 @@
   .err { color: var(--red); font-size: 11px; margin-top: 7px; }
   .note { margin-top: 16px; font-size: 10px; color: var(--dim); line-height: 1.6; }
 
+  /* Portfolio switcher */
+  .portfolio-switcher {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7); z-index: 200;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding-top: 80px;
+    display: none;
+  }
+  .portfolio-switcher.open { display: flex; }
+  .portfolio-dropdown {
+    background: var(--bg2); border: 1px solid var(--border);
+    min-width: 260px; max-width: 90vw; max-height: 60vh;
+    overflow-y: auto;
+  }
+  .portfolio-dropdown-title {
+    font-size: 9px; color: var(--dim); letter-spacing: 3px;
+    padding: 12px 14px 8px; border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+  }
+  .portfolio-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #131720;
+    transition: background 0.15s;
+  }
+  .portfolio-item:hover { background: #131720; }
+  .portfolio-item.active { color: var(--green); }
+  .portfolio-item-name { font-size: 13px; font-weight: bold; letter-spacing: 1px; }
+  .portfolio-item-count { font-size: 10px; color: var(--dim); }
+  .portfolio-add-row {
+    padding: 10px 14px; display: flex; gap: 8px; align-items: center;
+    border-top: 1px solid var(--border);
+  }
+  .portfolio-add-row input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    color: var(--bright); font-family: var(--font); font-size: 12px;
+    padding: 6px 8px; outline: none; text-transform: uppercase;
+  }
+  .header-title-btn {
+    background: transparent; border: none; cursor: pointer;
+    font-family: var(--font); font-size: 20px; font-weight: bold;
+    color: var(--bright); letter-spacing: 1px; padding: 0;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .header-title-btn:hover { color: var(--green); }
+  .header-title-arrow { font-size: 10px; color: var(--dim); }
+
   /* Settings panel */
   .settings-panel {
     position: fixed; bottom: 0; left: 0; right: 0;
@@ -113,7 +159,10 @@
 <div class="header">
   <div>
     <div class="header-sub">Portfolio Terminal</div>
-    <div class="header-title">MY POSITIONS</div>
+    <button class="header-title-btn" onclick="toggleSwitcher()">
+      <span id="portfolioTitle">MY PORTFOLIO</span>
+      <span class="header-title-arrow">&#9660;</span>
+    </button>
   </div>
   <button class="btn btn-green" id="refreshAllBtn" onclick="refreshAll()">&#8635; Refresh All</button>
 </div>
@@ -155,6 +204,23 @@
 
   <div class="note" id="mainNote"></div>
   <div style="height:60px"></div>
+</div>
+
+<!-- Portfolio Switcher -->
+<div class="portfolio-switcher" id="portfolioSwitcher" onclick="closeSwitcherOutside(event)">
+  <div class="portfolio-dropdown">
+    <div class="portfolio-dropdown-title">Portfolios</div>
+    <div id="portfolioList"></div>
+    <div class="portfolio-add-row">
+      <input type="search" id="newPortfolioName" placeholder="NEW PORTFOLIO NAME"
+        inputmode="text" autocomplete="off" autocorrect="off"
+        autocapitalize="characters" spellcheck="false"
+        style="-webkit-appearance:none"
+        oninput="this.value=this.value.toUpperCase()"
+        onkeydown="if(event.key==='Enter')addPortfolio()">
+      <button class="btn btn-green" onclick="addPortfolio()" style="white-space:nowrap">+ ADD</button>
+    </div>
+  </div>
 </div>
 
 <!-- Overlay -->
@@ -200,7 +266,36 @@
 </div>
 
 <script>
-var STORAGE = 'pt_v3';
+// --- Multi-portfolio ---
+var portfolios = {};  // { id: { name, positions } }
+var currentPortfolioId = null;
+
+function getPortfolios() {
+  try { return JSON.parse(localStorage.getItem('pt_portfolios') || '{}'); } catch(e) { return {}; }
+}
+function savePortfolios() {
+  try { localStorage.setItem('pt_portfolios', JSON.stringify(portfolios)); } catch(e) {}
+}
+function initPortfolios() {
+  portfolios = getPortfolios();
+  // Migrate legacy data (pt_v3) into default portfolio if no portfolios exist
+  if (Object.keys(portfolios).length === 0) {
+    var legacy = [];
+    try { legacy = JSON.parse(localStorage.getItem('pt_v3') || '[]'); } catch(e) {}
+    var id = 'p_' + Date.now();
+    portfolios[id] = { name: 'MY PORTFOLIO', positions: legacy };
+    savePortfolios();
+  }
+  // Restore last active portfolio
+  currentPortfolioId = localStorage.getItem('pt_current');
+  if (!currentPortfolioId || !portfolios[currentPortfolioId]) {
+    currentPortfolioId = Object.keys(portfolios)[0];
+  }
+}
+function currentPortfolio() {
+  return portfolios[currentPortfolioId] || { name: 'MY PORTFOLIO', positions: [] };
+}
+
 var positions = [];
 var loadingSet = {};
 var editId = null;
@@ -210,10 +305,60 @@ try { var _s = JSON.parse(localStorage.getItem('pt_sort')); if (_s && _s.key) { 
 
 // --- Local storage ---
 function loadLocal() {
-  try { positions = JSON.parse(localStorage.getItem(STORAGE) || '[]'); } catch(e) { positions = []; }
+  positions = currentPortfolio().positions;
 }
 function saveLocal() {
-  try { localStorage.setItem(STORAGE, JSON.stringify(positions)); } catch(e) {}
+  portfolios[currentPortfolioId].positions = positions;
+  savePortfolios();
+}
+
+// --- Portfolio switcher ---
+function toggleSwitcher() {
+  var el = document.getElementById('portfolioSwitcher');
+  el.classList.toggle('open');
+  if (el.classList.contains('open')) renderSwitcher();
+}
+function closeSwitcher() {
+  document.getElementById('portfolioSwitcher').classList.remove('open');
+}
+function closeSwitcherOutside(e) {
+  if (e.target === document.getElementById('portfolioSwitcher')) closeSwitcher();
+}
+function renderSwitcher() {
+  var list = document.getElementById('portfolioList');
+  var html = '';
+  Object.keys(portfolios).forEach(function(id) {
+    var p = portfolios[id];
+    var active = id === currentPortfolioId;
+    html += '<div class="portfolio-item' + (active ? ' active' : '') + '" onclick="switchPortfolio('' + id + '')">'
+      + '<span class="portfolio-item-name">' + p.name + '</span>'
+      + '<span class="portfolio-item-count">' + p.positions.length + ' positions'
+      + (active ? ' &#10003;' : '') + '</span>'
+      + '</div>';
+  });
+  list.innerHTML = html;
+}
+function switchPortfolio(id) {
+  if (!portfolios[id]) return;
+  currentPortfolioId = id;
+  localStorage.setItem('pt_current', id);
+  loadLocal();
+  editId = null;
+  loadingSet = {};
+  document.getElementById('portfolioTitle').textContent = portfolios[id].name;
+  closeSwitcher();
+  render();
+  cloudLoad(function(loaded) { if (loaded) render(); });
+}
+function addPortfolio() {
+  var name = document.getElementById('newPortfolioName').value.trim();
+  if (!name) return;
+  var id = 'p_' + Date.now();
+  portfolios[id] = { name: name, positions: [] };
+  savePortfolios();
+  document.getElementById('newPortfolioName').value = '';
+  switchPortfolio(id);
+  renderSwitcher();
 }
 
 // --- JSONBin ---
@@ -625,10 +770,11 @@ function render() {
   }
 }
 
-load();
+initPortfolios();
+loadLocal();
+document.getElementById('portfolioTitle').textContent = currentPortfolio().name;
 showKeyStatus();
 render();
-// Try loading from cloud on startup
 cloudLoad(function(loaded) { if (loaded) render(); });
 </script>
 <script>
