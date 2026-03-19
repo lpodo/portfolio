@@ -30,7 +30,7 @@ A PWA stock portfolio tracker. Minimalist, no dependencies, works from any devic
 
 ## Data Storage
 
-* **localStorage** — primary on-device cache, key `pt_v3`
+* **localStorage** — primary on-device cache, key `pt_portfolios` (multi-portfolio), legacy `pt_v3` auto-migrated on first launch
 * **JSONBin.io** — cloud storage for cross-device sync
   * Master Key: `localStorage['pt_jbkey']`
   * Bin ID: `localStorage['pt_jbbin']`
@@ -60,6 +60,7 @@ A PWA stock portfolio tracker. Minimalist, no dependencies, works from any devic
 * P&L $ calculated for full position: `(current - entry) × qty`
 * P&L % calculated per share: `(current - entry) / entry × 100`
 * Summary row after table: VALUE (total current value), P&L (total), RETURN (%)
+* Multiple portfolios — tap portfolio name in header to switch, add, rename, or delete
 * Add form at the bottom, below the table
 * TICKER field: `type="search"` + `autocapitalize="characters"` — fix for Android numeric keyboard
 
